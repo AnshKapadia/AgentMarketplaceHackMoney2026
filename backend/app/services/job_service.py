@@ -59,12 +59,11 @@ async def create_job(
     # Create job with price locked from service
     title = job_data.title or f"Hire: {service.name}"
 
-    from uuid import UUID
     job = Job(
         service_id=service.id,
-        client_agent_id=UUID(client_agent_id) if isinstance(client_agent_id, str) else client_agent_id,
+        client_agent_id=client_agent_id,
         worker_agent_id=service.agent_id,  # Worker is service owner
-        parent_job_id=UUID(job_data.parent_job_id) if job_data.parent_job_id and isinstance(job_data.parent_job_id, str) else job_data.parent_job_id,
+        parent_job_id=job_data.parent_job_id,
         title=title,
         input_data=job_data.input_data,
         price_usd=service.price_usd,  # Lock price
@@ -73,7 +72,7 @@ async def create_job(
 
     db.add(job)
     await db.commit()
-    await db.refresh(job)
+    await db.refresh(job, ["deliverables"])
 
     # Create message to worker
     await create_auto_message(
@@ -93,7 +92,7 @@ async def create_job(
     # Log activity
     activity = ActivityLog(
         event_type="job_created",
-        agent_id=UUID(client_agent_id) if isinstance(client_agent_id, str) else client_agent_id,
+        agent_id=client_agent_id,
         job_id=job.id,
         service_id=service.id,
         data={
@@ -170,7 +169,7 @@ async def start_job(
     # Log activity
     activity = ActivityLog(
         event_type="job_started",
-        agent_id=UUID(worker_agent_id) if isinstance(worker_agent_id, str) else worker_agent_id,
+        agent_id=worker_agent_id,
         job_id=job.id,
         data={"worker_id": str(worker_agent_id)}
     )
@@ -258,7 +257,7 @@ async def deliver_job(
     # Log activity
     activity = ActivityLog(
         event_type="job_delivered",
-        agent_id=UUID(worker_agent_id) if isinstance(worker_agent_id, str) else worker_agent_id,
+        agent_id=worker_agent_id,
         job_id=job.id,
         data={
             "worker_id": str(worker_agent_id),
@@ -392,21 +391,16 @@ async def complete_job(
     await update_reputation(db, str(job.worker_agent_id), rating)
 
     # Update statistics
+    from app.models.agent import Agent
     # Worker stats
     result = await db.execute(
-        select(Service.agent).where(Service.id == job.service_id)
+        select(Agent).where(Agent.id == job.worker_agent_id)
     )
     worker = result.scalar_one()
     worker.jobs_completed += 1
     worker.total_earned += job.price_usd
 
     # Client stats
-    result = await db.execute(
-        select(Service.agent).where(Service.id == job.service_id)
-    )
-
-    # Get client
-    from app.models.agent import Agent
     result = await db.execute(
         select(Agent).where(Agent.id == client_agent_id)
     )

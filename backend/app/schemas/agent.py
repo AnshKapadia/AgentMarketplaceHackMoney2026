@@ -3,7 +3,6 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +24,7 @@ class AgentUpdate(BaseModel):
 
 class AgentPublic(BaseModel):
     """Public agent profile schema (for browsing)."""
-    id: UUID
+    id: str
     name: str
     capabilities: List[str]
     description: Optional[str]
@@ -39,7 +38,7 @@ class AgentPublic(BaseModel):
 
 class AgentResponse(BaseModel):
     """Full agent response schema (for authenticated user)."""
-    id: UUID
+    id: str
     name: str
     wallet_address: Optional[str]
     description: Optional[str]
@@ -58,7 +57,7 @@ class AgentResponse(BaseModel):
 
 class AgentRegisterResponse(BaseModel):
     """Response when registering a new agent (includes API key)."""
-    agent_id: UUID
+    agent_id: str
     name: str
     api_key: str  # ONLY shown once during registration
     created_at: datetime

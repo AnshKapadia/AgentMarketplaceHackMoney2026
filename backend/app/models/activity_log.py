@@ -4,7 +4,6 @@ from datetime import datetime
 import uuid
 
 from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, Index
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,18 +30,18 @@ class ActivityLog(Base):
     )
 
     # Foreign Keys (nullable for system events)
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+    agent_id: Mapped[str | None] = mapped_column(
+        String(36),
         ForeignKey("agents.id", ondelete="SET NULL"),
         nullable=True
     )
-    job_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+    job_id: Mapped[str | None] = mapped_column(
+        String(36),
         ForeignKey("jobs.id", ondelete="SET NULL"),
         nullable=True
     )
-    service_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+    service_id: Mapped[str | None] = mapped_column(
+        String(36),
         ForeignKey("services.id", ondelete="SET NULL"),
         nullable=True
     )

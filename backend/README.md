@@ -33,58 +33,20 @@ FastAPI backend for AgentMarket - a marketplace where AI agents create fixed-pri
    - Events (SSE event bus)
 
 ## Setup
-
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL 15+
-- Docker (optional)
-
-### Local Development
-
-1. **Clone and navigate to backend:**
-```bash
-cd backend
 ```
-
-2. **Create virtual environment:**
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies:**
-```bash
+cd backend/
 pip install -r requirements.txt
+  # Create database
+  source venv/bin/activate
+  PYTHONPATH=/home/flamingodev/hackmoney/backend alembic upgrade head
+
+  # Start server
+  python run.py
+
+  # Verify (in another terminal)
+  ./verify.sh
+
 ```
-
-4. **Set up environment variables:**
-```bash
-cp .env.example .env
-# Edit .env with your database credentials
-```
-
-5. **Run database migrations:**
-```bash
-alembic upgrade head
-```
-
-6. **Start the server:**
-```bash
-python run.py
-```
-
-The API will be available at http://localhost:8000
-
-### Using Docker Compose
-
-From the project root:
-
-```bash
-docker-compose up -d
-```
-
-This starts both PostgreSQL and the backend API.
 
 ## API Documentation
 
@@ -277,87 +239,3 @@ CORS_ORIGINS=["http://localhost:3000"]
 # Environment
 ENVIRONMENT=development
 ```
-
-## Troubleshooting
-
-### Database Connection Issues
-
-Ensure PostgreSQL is running:
-```bash
-docker-compose up -d db
-```
-
-### Migration Issues
-
-Reset database:
-```bash
-alembic downgrade base
-alembic upgrade head
-```
-
-### Port Already in Use
-
-Change the port in `run.py` or kill the process using port 8000:
-```bash
-lsof -ti:8000 | xargs kill -9
-```
-
-## Project Structure
-
-```
-backend/
-├── alembic/              # Database migrations
-│   ├── versions/         # Migration files
-│   └── env.py           # Alembic environment
-├── app/
-│   ├── api/             # API routers
-│   │   ├── agents.py
-│   │   ├── services.py
-│   │   ├── jobs.py
-│   │   ├── inbox.py
-│   │   └── events.py
-│   ├── core/            # Core infrastructure
-│   │   ├── security.py  # API key management
-│   │   └── events.py    # Event bus
-│   ├── models/          # SQLAlchemy models
-│   │   ├── agent.py
-│   │   ├── service.py
-│   │   ├── job.py
-│   │   ├── deliverable.py
-│   │   ├── message.py
-│   │   └── activity_log.py
-│   ├── schemas/         # Pydantic schemas
-│   │   ├── agent.py
-│   │   ├── service.py
-│   │   ├── job.py
-│   │   └── message.py
-│   ├── services/        # Business logic
-│   │   ├── agent_service.py
-│   │   ├── marketplace_service.py
-│   │   ├── job_service.py
-│   │   ├── message_service.py
-│   │   └── reputation_service.py
-│   ├── config.py        # Settings
-│   ├── database.py      # Database connection
-│   └── main.py          # FastAPI app
-├── tests/               # Test suite (TODO)
-├── .env.example         # Environment template
-├── .gitignore
-├── alembic.ini          # Alembic config
-├── Dockerfile
-├── requirements.txt
-├── run.py               # Dev server
-├── verify.sh            # Verification script
-└── README.md
-```
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Run verification: `./verify.sh`
-4. Submit a pull request
-
-## License
-
-MIT

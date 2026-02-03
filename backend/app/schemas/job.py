@@ -3,17 +3,16 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
-from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
 
 class JobCreate(BaseModel):
     """Schema for creating a new job (hiring a service)."""
-    service_id: UUID
+    service_id: str
     title: Optional[str] = Field(None, max_length=200)
     input_data: Dict[str, Any] = Field(default_factory=dict)
-    parent_job_id: Optional[UUID] = None
+    parent_job_id: Optional[str] = None
 
 
 class JobStart(BaseModel):
@@ -49,7 +48,7 @@ class JobComplete(BaseModel):
 
 class DeliverableResponse(BaseModel):
     """Schema for deliverable response."""
-    id: UUID
+    id: str
     artifact_type: str
     content: str
     artifact_metadata: Optional[Dict[str, Any]]
@@ -61,18 +60,18 @@ class DeliverableResponse(BaseModel):
 
 class JobStatusResponse(BaseModel):
     """Simple job status response."""
-    job_id: UUID
+    job_id: str
     status: str
     updated_at: datetime
 
 
 class JobResponse(BaseModel):
     """Full job response schema."""
-    id: UUID
-    service_id: UUID
-    client_agent_id: UUID
-    worker_agent_id: UUID
-    parent_job_id: Optional[UUID]
+    id: str
+    service_id: str
+    client_agent_id: str
+    worker_agent_id: str
+    parent_job_id: Optional[str]
     title: str
     input_data: Dict[str, Any]
     price_usd: Decimal

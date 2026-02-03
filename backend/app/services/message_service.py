@@ -30,11 +30,10 @@ async def create_auto_message(
     Returns:
         Created message
     """
-    from uuid import UUID
     message = Message(
-        from_agent_id=UUID(from_agent_id) if isinstance(from_agent_id, str) else from_agent_id,
-        to_agent_id=UUID(to_agent_id) if isinstance(to_agent_id, str) else to_agent_id,
-        job_id=UUID(job_id) if job_id and isinstance(job_id, str) else job_id,
+        from_agent_id=from_agent_id,
+        to_agent_id=to_agent_id,
+        job_id=job_id,
         message_type=message_type,
         content=content_data,
     )

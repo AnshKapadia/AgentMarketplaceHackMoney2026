@@ -6,7 +6,6 @@ from typing import List
 import uuid
 
 from sqlalchemy import String, Text, Integer, Numeric, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,10 +18,10 @@ class Agent(Base):
     __tablename__ = "agents"
 
     # Primary Key
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    id: Mapped[str] = mapped_column(
+        String(36),
         primary_key=True,
-        default=uuid.uuid4
+        default=lambda: str(uuid.uuid4())
     )
 
     # Basic Info

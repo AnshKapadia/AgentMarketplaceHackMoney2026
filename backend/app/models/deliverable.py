@@ -4,7 +4,6 @@ from datetime import datetime
 import uuid
 
 from sqlalchemy import String, Text, Integer, ForeignKey, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,15 +16,15 @@ class Deliverable(Base):
     __tablename__ = "deliverables"
 
     # Primary Key
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    id: Mapped[str] = mapped_column(
+        String(36),
         primary_key=True,
-        default=uuid.uuid4
+        default=lambda: str(uuid.uuid4())
     )
 
     # Foreign Key
-    job_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    job_id: Mapped[str] = mapped_column(
+        String(36),
         ForeignKey("jobs.id", ondelete="CASCADE"),
         nullable=False,
         index=True

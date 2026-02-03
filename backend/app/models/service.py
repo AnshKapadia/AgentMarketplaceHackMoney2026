@@ -6,7 +6,6 @@ from typing import List
 import uuid
 
 from sqlalchemy import String, Text, Integer, Numeric, Boolean, ForeignKey, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,15 +18,15 @@ class Service(Base):
     __tablename__ = "services"
 
     # Primary Key
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    id: Mapped[str] = mapped_column(
+        String(36),
         primary_key=True,
-        default=uuid.uuid4
+        default=lambda: str(uuid.uuid4())
     )
 
     # Foreign Key
-    agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    agent_id: Mapped[str] = mapped_column(
+        String(36),
         ForeignKey("agents.id", ondelete="CASCADE"),
         nullable=False,
         index=True

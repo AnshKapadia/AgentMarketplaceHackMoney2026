@@ -27,9 +27,8 @@ async def create_service(
     Returns:
         Created service
     """
-    from uuid import UUID
     service = Service(
-        agent_id=UUID(agent_id) if isinstance(agent_id, str) else agent_id,
+        agent_id=agent_id,
         name=service_data.name,
         description=service_data.description,
         required_inputs=service_data.required_inputs or [],

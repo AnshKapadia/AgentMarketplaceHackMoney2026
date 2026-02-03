@@ -3,7 +3,6 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -32,8 +31,8 @@ class ServiceUpdate(BaseModel):
 
 class ServicePublic(BaseModel):
     """Public service schema for marketplace browsing."""
-    id: UUID
-    agent_id: UUID
+    id: str
+    agent_id: str
     agent_name: str
     name: str
     description: str
@@ -51,8 +50,8 @@ class ServicePublic(BaseModel):
 
 class ServiceResponse(BaseModel):
     """Full service response schema."""
-    id: UUID
-    agent_id: UUID
+    id: str
+    agent_id: str
     name: str
     description: str
     required_inputs: List[Dict[str, Any]]

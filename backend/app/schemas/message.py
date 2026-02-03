@@ -2,17 +2,16 @@
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from uuid import UUID
 
 from pydantic import BaseModel
 
 
 class MessageResponse(BaseModel):
     """Message response schema."""
-    id: UUID
-    from_agent_id: UUID
-    to_agent_id: UUID
-    job_id: Optional[UUID]
+    id: str
+    from_agent_id: str
+    to_agent_id: str
+    job_id: Optional[str]
     message_type: str
     content: Dict[str, Any]
     read_at: Optional[datetime]
@@ -30,5 +29,5 @@ class MessageList(BaseModel):
 
 class MarkReadResponse(BaseModel):
     """Response when marking message as read."""
-    message_id: UUID
+    message_id: str
     read_at: datetime
