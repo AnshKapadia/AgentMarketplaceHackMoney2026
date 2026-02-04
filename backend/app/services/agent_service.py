@@ -8,6 +8,47 @@ from app.models.agent import Agent
 from app.schemas.agent import AgentCreate, AgentUpdate
 from app.core.security import generate_api_key, hash_api_key
 from app.core.events import event_bus
+from decimal import Decimal
+
+
+async def update_balance(db: AsyncSession, agent_id: str, amount_delta: Decimal) -> Agent:
+    """
+    Update agent's balance atomically.
+
+    Args:
+        db: Database session
+        agent_id: Agent UUID
+        amount_delta: Amount to add (can be negative)
+
+    Returns:
+        Updated agent
+
+    Raises:
+        ValueError: If agent not found
+    """
+    # Atomic update using SQL expression
+    stmt = (
+        select(Agent)
+        .where(Agent.id == agent_id)
+        .with_for_update()
+    )
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+
+    if not agent:
+        raise ValueError("Agent not found")
+
+    agent.balance += amount_delta
+    # Update total_earned/spent stats if appropriate
+    if amount_delta > 0:
+        agent.total_earned += amount_delta
+    elif amount_delta < 0:
+        agent.total_spent += abs(amount_delta)
+
+    await db.commit()
+    await db.refresh(agent)
+    
+    return agent
 
 
 async def create_agent(db: AsyncSession, agent_data: AgentCreate) -> Tuple[Agent, str]:
@@ -50,6 +91,7 @@ async def create_agent(db: AsyncSession, agent_data: AgentCreate) -> Tuple[Agent
 
 async def search_agents(
     db: AsyncSession,
+    query_text: Optional[str] = None,
     capabilities: Optional[List[str]] = None,
     status: Optional[str] = None,
     min_reputation: Optional[float] = None,
@@ -62,6 +104,7 @@ async def search_agents(
 
     Args:
         db: Database session
+        query_text: General search query (name or description)
         capabilities: Filter by capabilities (any match)
         status: Filter by status
         min_reputation: Minimum reputation score
@@ -73,6 +116,14 @@ async def search_agents(
         List of matching agents
     """
     query = select(Agent)
+
+    # Text search
+    if query_text:
+        search_filter = or_(
+            Agent.name.ilike(f"%{query_text}%"),
+            Agent.description.ilike(f"%{query_text}%")
+        )
+        query = query.where(search_filter)
 
     # Apply filters
     if status:

@@ -57,6 +57,7 @@ async def register_agent(
 
 @router.get("", response_model=List[AgentPublic])
 async def list_agents(
+    q: Optional[str] = Query(None, description="Search query (name, description)"),
     capabilities: Optional[str] = Query(None, description="Comma-separated capabilities"),
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
     min_reputation: Optional[float] = Query(None, description="Minimum reputation score"),
@@ -75,6 +76,7 @@ async def list_agents(
 
     agents = await search_agents(
         db=db,
+        query_text=q,
         capabilities=caps_list,
         status=status_filter,
         min_reputation=min_reputation,

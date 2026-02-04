@@ -14,11 +14,16 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Generate random suffix to avoid name collisions
+SUFFIX=$(date +%s)
+CLIENT_NAME="ClientBot_$SUFFIX"
+WORKER_NAME="WorkerBot_$SUFFIX"
+
 # 1. Register two agents
-echo -e "${BLUE}Step 1: Registering ClientBot...${NC}"
+echo -e "${BLUE}Step 1: Registering $CLIENT_NAME...${NC}"
 CLIENT_RESPONSE=$(curl -s -X POST "$BASE_URL/agents" \
   -H "Content-Type: application/json" \
-  -d '{"name": "ClientBot", "capabilities": ["orchestration"], "description": "I orchestrate tasks"}')
+  -d "{\"name\": \"$CLIENT_NAME\", \"capabilities\": [\"orchestration\"], \"description\": \"I orchestrate tasks\"}")
 
 CLIENT_KEY=$(echo $CLIENT_RESPONSE | jq -r '.api_key')
 CLIENT_ID=$(echo $CLIENT_RESPONSE | jq -r '.agent_id')
@@ -34,10 +39,10 @@ echo "  Agent ID: $CLIENT_ID"
 echo "  API Key: $CLIENT_KEY"
 echo ""
 
-echo -e "${BLUE}Step 2: Registering WorkerBot...${NC}"
+echo -e "${BLUE}Step 2: Registering $WORKER_NAME...${NC}"
 WORKER_RESPONSE=$(curl -s -X POST "$BASE_URL/agents" \
   -H "Content-Type: application/json" \
-  -d '{"name": "WorkerBot", "capabilities": ["copywriting"], "description": "I write compelling copy"}')
+  -d "{\"name\": \"$WORKER_NAME\", \"capabilities\": [\"copywriting\"], \"description\": \"I write compelling copy\"}")
 
 WORKER_KEY=$(echo $WORKER_RESPONSE | jq -r '.api_key')
 WORKER_ID=$(echo $WORKER_RESPONSE | jq -r '.agent_id')
@@ -168,13 +173,16 @@ echo "  Status: completed"
 echo "  Rating: $RATING/5"
 echo ""
 
-# 7. Verify worker reputation
-echo -e "${BLUE}Step 8: Checking WorkerBot reputation...${NC}"
+# 7. Verify worker reputation and earnings
+echo -e "${BLUE}Step 8: Checking WorkerBot stats...${NC}"
+# Public profile for reputation
 AGENT_RESPONSE=$(curl -s "$BASE_URL/agents/$WORKER_ID")
-
 REPUTATION=$(echo $AGENT_RESPONSE | jq -r '.reputation_score')
 JOBS_COMPLETED=$(echo $AGENT_RESPONSE | jq -r '.jobs_completed')
-TOTAL_EARNED=$(echo $AGENT_RESPONSE | jq -r '.total_earned')
+
+# Private profile for earnings
+PRIVATE_RESPONSE=$(curl -s "$BASE_URL/agents/me" -H "X-Agent-Key: $WORKER_KEY")
+TOTAL_EARNED=$(echo $PRIVATE_RESPONSE | jq -r '.total_earned')
 
 echo -e "${GREEN}✓ WorkerBot stats updated${NC}"
 echo "  Reputation: $REPUTATION (expected: 5.00)"
@@ -202,6 +210,47 @@ echo -e "${GREEN}✓ WorkerBot has $MESSAGE_COUNT messages${NC}"
 echo $INBOX_RESPONSE | jq '.messages[] | {type: .message_type, content: .content.message}'
 
 echo ""
+
+# 10. Verify Search
+echo -e "${BLUE}Step 11: Verifying Agent Search...${NC}"
+SEARCH_RESPONSE=$(curl -s "$BASE_URL/agents?q=compelling")
+SEARCH_COUNT=$(echo $SEARCH_RESPONSE | jq '. | length')
+
+if [ "$SEARCH_COUNT" -lt 1 ]; then
+  echo -e "${RED}❌ Search failed - expected at least 1 result (matching 'compelling')${NC}"
+  echo $SEARCH_RESPONSE | jq
+  exit 1
+fi
+echo -e "${GREEN}✓ Search found $SEARCH_COUNT agents matching 'compelling'${NC}"
+echo ""
+
+# 11. Verify Balance Update (Top-up)
+echo -e "${BLUE}Step 12: Verifying Balance Top-up...${NC}"
+INITIAL_BALANCE=$(curl -s "$BASE_URL/agents/me" -H "X-Agent-Key: $CLIENT_KEY" | jq -r '.balance')
+echo "  Initial Balance: \$$INITIAL_BALANCE"
+
+# Top up 100 USDC
+VERIFY_PAYMENT_RESPONSE=$(curl -s -X POST "$BASE_URL/payments/verify" \
+  -H "X-Agent-Key: $CLIENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tx_hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "amount": 100.00,
+    "currency": "USDC"
+  }')
+
+SUCCESS=$(echo $VERIFY_PAYMENT_RESPONSE | jq -r '.success')
+NEW_BALANCE=$(echo $VERIFY_PAYMENT_RESPONSE | jq -r '.new_balance')
+
+if [ "$SUCCESS" != "true" ]; then
+  echo -e "${RED}❌ Payment verification failed${NC}"
+  echo $VERIFY_PAYMENT_RESPONSE | jq
+  exit 1
+fi
+
+echo -e "${GREEN}✓ Balance topped up to \$$NEW_BALANCE${NC}"
+echo ""
+
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}✅ All verification steps passed!${NC}"
 echo -e "${GREEN}========================================${NC}"
