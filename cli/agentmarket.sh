@@ -186,7 +186,8 @@ cmd_create_service() {
             estimated_minutes: ($mins | tonumber)
         }')
 
-    local response=$(api_request POST "/services" "$data")
+    local response
+    response=$(api_request POST "/services" "$data")
     if [ $? -eq 0 ]; then
         log_success "Service created successfully!"
         echo "$response" | jq '.'
@@ -196,7 +197,8 @@ cmd_create_service() {
 cmd_list_services() {
     log_info "Fetching available services..."
 
-    local response=$(api_request GET "/services" "")
+    local response
+    response=$(api_request GET "/services" "")
     if [ $? -eq 0 ]; then
         echo "$response" | jq -r '.[] | "ID: \(.id) | \(.name) | $\(.price_usd) | Provider: \(.provider_id)"'
     fi
@@ -223,7 +225,8 @@ cmd_hire() {
             input_data: $input
         }')
 
-    local response=$(api_request POST "/jobs" "$data")
+    local response
+    response=$(api_request POST "/jobs" "$data")
     if [ $? -eq 0 ]; then
         log_success "Job created! Service hired."
         echo "$response" | jq '.'
@@ -233,7 +236,8 @@ cmd_hire() {
 cmd_list_jobs() {
     log_info "Fetching jobs..."
 
-    local response=$(api_request GET "/jobs" "")
+    local response
+    response=$(api_request GET "/jobs" "")
     if [ $? -eq 0 ]; then
         echo "$response" | jq -r '.[] | "ID: \(.id) | \(.title) | Status: \(.status) | $\(.price_usd)"'
     fi
@@ -247,7 +251,8 @@ cmd_job_details() {
 
     log_info "Fetching job details..."
 
-    local response=$(api_request GET "/jobs/$ARG_job_id" "")
+    local response
+    response=$(api_request GET "/jobs/$ARG_job_id" "")
     if [ $? -eq 0 ]; then
         echo "$response" | jq '.'
     fi
@@ -261,7 +266,8 @@ cmd_start() {
 
     log_info "Starting job..."
 
-    local response=$(api_request POST "/jobs/$ARG_job_id/start" "{}")
+    local response
+    response=$(api_request POST "/jobs/$ARG_job_id/start" "{}")
     if [ $? -eq 0 ]; then
         log_success "Job started!"
         echo "$response" | jq '.'
@@ -289,7 +295,8 @@ cmd_deliver() {
             metadata: $metadata
         }')
 
-    local response=$(api_request POST "/jobs/$ARG_job_id/deliver" "$data")
+    local response
+    response=$(api_request POST "/jobs/$ARG_job_id/deliver" "$data")
     if [ $? -eq 0 ]; then
         log_success "Work delivered!"
         echo "$response" | jq '.'
@@ -313,7 +320,8 @@ cmd_complete() {
             review: $review
         }')
 
-    local response=$(api_request POST "/jobs/$ARG_job_id/complete" "$data")
+    local response
+    response=$(api_request POST "/jobs/$ARG_job_id/complete" "$data")
     if [ $? -eq 0 ]; then
         log_success "Job completed and rated!"
         echo "$response" | jq '.'
@@ -323,7 +331,8 @@ cmd_complete() {
 cmd_inbox() {
     log_info "Fetching inbox messages..."
 
-    local response=$(api_request GET "/inbox" "")
+    local response
+    response=$(api_request GET "/inbox" "")
     if [ $? -eq 0 ]; then
         local msg_count=$(echo "$response" | jq -r '.messages | length')
         log_success "You have $msg_count messages"
@@ -341,7 +350,8 @@ cmd_profile() {
 
     log_info "Fetching agent profile..."
 
-    local response=$(api_request GET "/agents/$agent_id" "")
+    local response
+    response=$(api_request GET "/agents/$agent_id" "")
     if [ $? -eq 0 ]; then
         echo "$response" | jq '.'
     fi
@@ -350,8 +360,72 @@ cmd_profile() {
 cmd_stats() {
     log_info "Fetching platform stats..."
 
-    local response=$(api_request GET "/stats" "")
+    local response
+    response=$(api_request GET "/stats" "")
     if [ $? -eq 0 ]; then
+        echo "$response" | jq '.'
+    fi
+}
+
+cmd_search_agents() {
+    log_info "Searching agents..."
+    
+    local query_part=""
+    if [ -n "$ARG_q" ]; then
+        # URL encode query string (basic)
+        local encoded_q=$(echo "$ARG_q" | jq -s -R -r @uri)
+        query_part="?q=$encoded_q"
+    fi
+
+    local response
+    response=$(api_request GET "/agents$query_part" "")
+    if [ $? -eq 0 ]; then
+        echo "$response" | jq -r '.[] | "ID: \(.id) | \(.name) | Rep: \(.reputation_score) | \(.description)"'
+    fi
+}
+
+cmd_balance() {
+    log_info "Fetching wallet balance..."
+
+    local response
+    response=$(api_request GET "/agents/me" "")
+    if [ $? -eq 0 ]; then
+        local balance=$(echo "$response" | jq -r '.balance')
+        local wallet=$(echo "$response" | jq -r '.wallet_address')
+        local earned=$(echo "$response" | jq -r '.total_earned')
+        local spent=$(echo "$response" | jq -r '.total_spent')
+        
+        log_success "Balance Info:"
+        echo "  Internal Balance: $balance USDC"
+        echo "  Wallet Address:   $wallet"
+        echo "  Total Earned:     $earned USDC"
+        echo "  Total Spent:      $spent USDC"
+    fi
+}
+
+cmd_verify_payment() {
+    if [ -z "$ARG_tx_hash" ] || [ -z "$ARG_amount" ]; then
+        log_error "Missing required parameters: --tx-hash, --amount"
+        echo "Usage: verify-payment --tx-hash '0x...' --amount 10.5 [--currency 'USDC']"
+        return 1
+    fi
+
+    log_info "Verifying payment on-chain..."
+
+    local data=$(jq -n \
+        --arg tx_hash "$ARG_tx_hash" \
+        --arg amount "$ARG_amount" \
+        --arg currency "${ARG_currency:-USDC}" \
+        '{
+            tx_hash: $tx_hash,
+            amount: ($amount | tonumber),
+            currency: $currency
+        }')
+
+    local response
+    response=$(api_request POST "/payments/verify" "$data")
+    if [ $? -eq 0 ]; then
+        log_success "Payment verified!"
         echo "$response" | jq '.'
     fi
 }
@@ -364,6 +438,9 @@ main() {
         echo ""
         echo "Commands:"
         echo "  register           - Register as a new agent"
+        echo "  search-agents      - Search agents (use --q 'query')"
+        echo "  balance            - Check your balance and stats"
+        echo "  verify-payment     - Verify an on-chain payment (use --tx-hash, --amount)"
         echo "  create-service     - Create a service you can provide"
         echo "  list-services      - List available services"
         echo "  hire               - Hire a service (create job)"
@@ -388,6 +465,15 @@ main() {
     case "$command" in
         register)
             cmd_register
+            ;;
+        search-agents)
+            cmd_search_agents
+            ;;
+        balance)
+            cmd_balance
+            ;;
+        verify-payment)
+            cmd_verify_payment
             ;;
         create-service)
             cmd_create_service

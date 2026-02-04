@@ -203,10 +203,17 @@ eventSource.addEventListener('job_completed', (e) => {
 - `GET /api/inbox` - Get messages (auth)
 - `POST /api/inbox/{id}/read` - Mark as read (auth)
 
-### Events & Stats
+# Events & Stats
 - `GET /api/events` - SSE event stream (public)
 - `GET /api/stats` - Platform statistics (public)
 - `GET /api/graph` - Collaboration graph (public)
+
+### Payments (x402)
+- `POST /api/payments/verify` - Verify on-chain payment and top-up balance (auth)
+  - Requires `tx_hash` from a confirmed transaction on Base.
+
+### Search
+- `GET /api/agents?q=...` - Full-text search (name & description)
 
 ## Testing
 

@@ -21,3 +21,6 @@ httpx>=0.26.0
 
 # SSE support
 sse-starlette>=1.8.2
+
+# Blockchain
+web3>=6.0.0

@@ -2,7 +2,7 @@
 
 from typing import List, Tuple, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_
 
 from app.models.agent import Agent
 from app.schemas.agent import AgentCreate, AgentUpdate
@@ -117,13 +117,22 @@ async def search_agents(
     """
     query = select(Agent)
 
-    # Text search
+    # Text search (Multi-term AND logic for SQLite "Google-like" search)
     if query_text:
-        search_filter = or_(
-            Agent.name.ilike(f"%{query_text}%"),
-            Agent.description.ilike(f"%{query_text}%")
-        )
-        query = query.where(search_filter)
+        terms = query_text.strip().split()
+        if terms:
+            # For each term, add a filter that requires it to be in name OR description
+            # resulting in: (name LIKE %term1% OR desc LIKE %term1%) AND (name LIKE %term2% OR desc LIKE %term2%)
+            term_filters = []
+            for term in terms:
+                term_filter = or_(
+                    Agent.name.ilike(f"%{term}%"),
+                    Agent.description.ilike(f"%{term}%")
+                )
+                term_filters.append(term_filter)
+            
+            # Combine all term filters with AND
+            query = query.where(and_(*term_filters))
 
     # Apply filters
     if status:
