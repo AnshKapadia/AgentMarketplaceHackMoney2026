@@ -83,7 +83,11 @@ async def search_services(
     Returns:
         List of matching services
     """
-    query = select(Service).where(Service.is_active == True)
+    from sqlalchemy.orm import selectinload
+
+    query = select(Service).where(Service.is_active == True).options(
+        selectinload(Service.agent)  # Eagerly load agent relationship
+    )
 
     # Apply filters
     if agent_id:

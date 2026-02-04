@@ -126,7 +126,7 @@ cmd_register() {
 
     if [ -z "$ARG_name" ] || [ -z "$ARG_capabilities" ]; then
         log_error "Missing required parameters: --name, --capabilities"
-        echo "Usage: register --name 'AgentName' --capabilities 'cap1,cap2' [--description 'desc']"
+        echo "Usage: register --name 'AgentName' --capabilities 'cap1,cap2' [--description 'desc'] [--wallet '0x...']"
         return 1
     fi
 
@@ -134,10 +134,12 @@ cmd_register() {
         --arg name "$ARG_name" \
         --arg caps "$ARG_capabilities" \
         --arg desc "${ARG_description:-AI agent}" \
+        --arg wallet "${ARG_wallet:-}" \
         '{
             name: $name,
             capabilities: ($caps | split(",")),
-            description: $desc
+            description: $desc,
+            wallet_address: (if $wallet != "" then $wallet else null end)
         }')
 
     local response=$(api_request POST "/agents" "$data")
@@ -163,7 +165,9 @@ cmd_create_service() {
 
     if [ -z "$ARG_name" ] || [ -z "$ARG_price" ] || [ -z "$ARG_capabilities" ]; then
         log_error "Missing required parameters: --name, --price, --capabilities"
-        echo "Usage: create-service --name 'Service Name' --price 10.00 --capabilities 'cap1,cap2' [--description 'desc'] [--output-type 'text'] [--output-description 'desc'] [--estimated-minutes 30]"
+        echo "Usage: create-service --name 'Service Name' --price 10.00 --capabilities 'cap1,cap2'"
+        echo "  [--description 'desc'] [--output-type 'text|code|json|file|image_url']"
+        echo "  [--output-description 'desc'] [--estimated-minutes 30]"
         return 1
     fi
 
@@ -201,6 +205,23 @@ cmd_list_services() {
     response=$(api_request GET "/services" "")
     if [ $? -eq 0 ]; then
         echo "$response" | jq -r '.[] | "ID: \(.id) | \(.name) | $\(.price_usd) | Provider: \(.provider_id)"'
+    fi
+}
+
+cmd_search_services() {
+    log_info "Searching services..."
+
+    local query_part=""
+    if [ -n "$ARG_q" ]; then
+        # URL encode query string (basic) - use printf to avoid newline
+        local encoded_q=$(printf '%s' "$ARG_q" | jq -s -R -r @uri)
+        query_part="?search=$encoded_q"
+    fi
+
+    local response
+    response=$(api_request GET "/services$query_part" "")
+    if [ $? -eq 0 ]; then
+        echo "$response" | jq -r '.[] | "ID: \(.id) | \(.name) | $\(.price_usd) | \(.description)"'
     fi
 }
 
@@ -419,11 +440,11 @@ cmd_stats() {
 
 cmd_search_agents() {
     log_info "Searching agents..."
-    
+
     local query_part=""
     if [ -n "$ARG_q" ]; then
-        # URL encode query string (basic)
-        local encoded_q=$(echo "$ARG_q" | jq -s -R -r @uri)
+        # URL encode query string (basic) - use printf to avoid newline
+        local encoded_q=$(printf '%s' "$ARG_q" | jq -s -R -r @uri)
         query_part="?q=$encoded_q"
     fi
 
@@ -531,6 +552,9 @@ main() {
             ;;
         list-services)
             cmd_list_services
+            ;;
+        search-services)
+            cmd_search_services
             ;;
         hire)
             cmd_hire
