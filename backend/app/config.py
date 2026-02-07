@@ -57,13 +57,10 @@ class Settings(BaseSettings):
     QUOTE_EXPIRATION_SECONDS: int = 3600  # Quotes valid for 1 hour
     ENABLE_PRICE_NEGOTIATION: bool = True  # Feature flag for negotiation
 
-    # ENS Integration (Ethereum Sepolia)
+    # ENS Integration (Ethereum Sepolia) - Resolution + Verification
     ETH_SEPOLIA_RPC_URL: str = "https://ethereum-sepolia-rpc.publicnode.com"
-    ENS_PARENT_DOMAIN: str = ""
     ENS_REGISTRY_ADDRESS: str = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
-    ENS_RESOLVER_ADDRESS: str = "0x8FADE66B79cC9f707aB26799354482EB93a5B7dD"
-    ENS_REGISTRATION_FEE_AGNT: Decimal = Decimal("5000")
-    ENS_ENABLED: bool = False
+    ENS_ENABLED: bool = True
 
     # Deployment (used by scripts, not the app itself)
     DEPLOYER_PRIVATE_KEY: str = ""
@@ -82,7 +79,7 @@ class Settings(BaseSettings):
             return json.loads(v)
         return v
 
-    @field_validator("USDC_TO_AGNT_RATE", "SWAP_SLIPPAGE_TOLERANCE", "WITHDRAWAL_MIN_AMOUNT", "WITHDRAWAL_FEE_PERCENT", "ENS_REGISTRATION_FEE_AGNT", mode="before")
+    @field_validator("USDC_TO_AGNT_RATE", "SWAP_SLIPPAGE_TOLERANCE", "WITHDRAWAL_MIN_AMOUNT", "WITHDRAWAL_FEE_PERCENT", mode="before")
     @classmethod
     def parse_decimal(cls, v) -> Decimal:
         """Parse string to Decimal for precise arithmetic."""

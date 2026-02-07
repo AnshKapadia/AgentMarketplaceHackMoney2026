@@ -126,7 +126,7 @@ cmd_register() {
 
     if [ -z "$ARG_name" ] || [ -z "$ARG_capabilities" ]; then
         log_error "Missing required parameters: --name, --capabilities"
-        echo "Usage: register --name 'AgentName' --capabilities 'cap1,cap2' [--description 'desc'] [--wallet '0x...']"
+        echo "Usage: register --name 'AgentName' --capabilities 'cap1,cap2' [--description 'desc'] [--wallet '0x...' or 'name.eth']"
         return 1
     fi
 
@@ -154,8 +154,13 @@ cmd_register() {
             echo "API Key: $api_key"
 
             local ens_name=$(echo "$response" | jq -r '.ens_name // empty')
+            local ens_verified=$(echo "$response" | jq -r '.ens_verified // false')
             if [ -n "$ens_name" ]; then
-                echo "ENS Name: $ens_name"
+                if [ "$ens_verified" = "true" ]; then
+                    echo -e "ENS Name: $ens_name ${GREEN}[verified]${NC}"
+                else
+                    echo "ENS Name: $ens_name"
+                fi
             fi
 
             echo ""
@@ -451,6 +456,43 @@ cmd_stats() {
     fi
 }
 
+cmd_resolve_ens() {
+    if [ -z "$ARG_name" ] && [ -z "$ARG_address" ]; then
+        log_error "Missing parameter: --name or --address"
+        echo "Usage: resolve-ens --name 'vitalik.eth'     (forward resolution)"
+        echo "       resolve-ens --address '0x...'         (reverse resolution)"
+        return 1
+    fi
+
+    if [ -n "$ARG_name" ]; then
+        log_info "Resolving ENS name: $ARG_name"
+        local response
+        response=$(api_request GET "/ens/resolve/$ARG_name" "")
+        if [ $? -eq 0 ]; then
+            local resolved=$(echo "$response" | jq -r '.resolved')
+            local address=$(echo "$response" | jq -r '.address // "not found"')
+            if [ "$resolved" = "true" ]; then
+                log_success "$ARG_name -> $address"
+            else
+                log_warning "No address found for $ARG_name"
+            fi
+        fi
+    else
+        log_info "Reverse resolving address: $ARG_address"
+        local response
+        response=$(api_request GET "/ens/reverse/$ARG_address" "")
+        if [ $? -eq 0 ]; then
+            local resolved=$(echo "$response" | jq -r '.resolved')
+            local name=$(echo "$response" | jq -r '.name // "not found"')
+            if [ "$resolved" = "true" ]; then
+                log_success "$ARG_address -> $name"
+            else
+                log_warning "No ENS name found for $ARG_address"
+            fi
+        fi
+    fi
+}
+
 cmd_search_agents() {
     log_info "Searching agents..."
 
@@ -464,7 +506,7 @@ cmd_search_agents() {
     local response
     response=$(api_request GET "/agents$query_part" "")
     if [ $? -eq 0 ]; then
-        echo "$response" | jq -r '.[] | "ID: \(.id) | \(.name) | Rep: \(.reputation_score) | \(.description)"'
+        echo "$response" | jq -r '.[] | "ID: \(.id) | \(.name)\(if .ens_verified then " [ENS verified]" else "" end) | Rep: \(.reputation_score) | \(.description)"'
     fi
 }
 
@@ -481,12 +523,17 @@ cmd_balance() {
         local spent=$(echo "$response" | jq -r '.total_spent')
 
         local ens_name=$(echo "$response" | jq -r '.ens_name // empty')
+        local ens_verified=$(echo "$response" | jq -r '.ens_verified // false')
 
         log_success "Balance Info:"
         echo "  Balance: $balance AGNT (\$$balance_usd USD)"
         echo "  Wallet:  $wallet"
         if [ -n "$ens_name" ]; then
-            echo "  ENS:     $ens_name"
+            if [ "$ens_verified" = "true" ]; then
+                echo -e "  ENS:     $ens_name ${GREEN}[verified]${NC}"
+            else
+                echo "  ENS:     $ens_name"
+            fi
         fi
         echo "  Earned:  $earned AGNT"
         echo "  Spent:   $spent AGNT"
@@ -547,7 +594,7 @@ cmd_withdraw() {
         echo "Usage: withdraw --amount AGNT_AMOUNT --to RECIPIENT_ADDRESS"
         echo ""
         echo "  --amount   AGNT amount to withdraw (min 1,000 AGNT)"
-        echo "  --to       Wallet address to receive USDC"
+        echo "  --to       Wallet address or ENS name to receive USDC"
         echo ""
         echo "  Rate:  10,000 AGNT = 1 USDC"
         echo "  Fee:   0.5%"
@@ -848,9 +895,10 @@ main() {
         echo "Usage: $0 <command> [options]"
         echo ""
         echo "Commands:"
-        echo "  register           - Register as a new agent (with ENS subdomain)"
+        echo "  register           - Register as a new agent (accepts ENS names for --wallet)"
         echo "  search-agents      - Search agents (use --q 'query')"
         echo "  balance            - Check your balance and stats"
+        echo "  resolve-ens        - Resolve ENS name to address (use --name 'vitalik.eth')"
         echo "  deposit            - Deposit USDC to get AGNT (use --tx-hash, --amount)"
         echo "  withdraw           - Withdraw AGNT to USDC (use --amount, --to)"
         echo "  verify-payment     - Verify an on-chain payment (use --tx-hash, --amount)"
@@ -886,6 +934,9 @@ main() {
     case "$command" in
         register)
             cmd_register
+            ;;
+        resolve-ens)
+            cmd_resolve_ens
             ;;
         search-agents)
             cmd_search_agents

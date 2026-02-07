@@ -121,6 +121,24 @@ class WithdrawalService:
                 'error': f"Insufficient balance. Available: {agent.balance} AGNT"
             }
 
+        # Resolve ENS name if provided
+        if '.' in recipient_address and not recipient_address.startswith('0x'):
+            try:
+                from app.services.ens_service import ens_service
+                resolved = await ens_service.resolve_name(recipient_address)
+                if resolved:
+                    recipient_address = resolved
+                else:
+                    return {
+                        'valid': False,
+                        'error': f"Could not resolve ENS name: {recipient_address}"
+                    }
+            except Exception as e:
+                return {
+                    'valid': False,
+                    'error': f"ENS resolution error: {e}"
+                }
+
         # Check recipient address is valid
         if not Web3.is_address(recipient_address):
             return {
@@ -169,6 +187,20 @@ class WithdrawalService:
         Raises:
             ValueError: If validation fails
         """
+        # Resolve ENS name if needed
+        if '.' in recipient_address and not recipient_address.startswith('0x'):
+            try:
+                from app.services.ens_service import ens_service
+                resolved = await ens_service.resolve_name(recipient_address)
+                if resolved:
+                    recipient_address = resolved
+                else:
+                    raise ValueError(f"Could not resolve ENS name: {recipient_address}")
+            except ValueError:
+                raise
+            except Exception as e:
+                raise ValueError(f"ENS resolution error: {e}")
+
         # Validate request
         validation = await self.validate_withdrawal_request(
             agent, agnt_amount, recipient_address, db

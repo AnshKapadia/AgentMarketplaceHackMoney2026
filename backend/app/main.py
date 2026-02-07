@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api import agents, services, jobs, inbox, events, payments, deposits, withdrawals, negotiations
+from app.api import agents, services, jobs, inbox, events, payments, deposits, withdrawals, negotiations, ens
 # quotes temporarily disabled (requires anthropic package for LLM negotiation - using P2P instead)
 
 # Create FastAPI app
@@ -75,6 +75,11 @@ app.include_router(
     negotiations.router,
     prefix=f"{settings.API_V1_PREFIX}",
     tags=["negotiations"]
+)
+app.include_router(
+    ens.router,
+    prefix=f"{settings.API_V1_PREFIX}",
+    tags=["ens"]
 )
 
 

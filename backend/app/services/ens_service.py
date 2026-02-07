@@ -1,9 +1,7 @@
-"""ENS subdomain registration service for agent identities on Ethereum Sepolia."""
+"""ENS resolution and verification service for Ethereum Sepolia."""
 
-import re
-import json
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 from web3 import Web3
 
@@ -12,73 +10,50 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-# Minimal ABIs for ENS contracts
+# Minimal ABIs for ENS resolution
 ENS_REGISTRY_ABI = [
     {
-        "inputs": [
-            {"name": "node", "type": "bytes32"},
-            {"name": "label", "type": "bytes32"},
-            {"name": "owner", "type": "address"},
-            {"name": "resolver", "type": "address"},
-            {"name": "ttl", "type": "uint64"}
-        ],
-        "name": "setSubnodeRecord",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "inputs": [{"name": "node", "type": "bytes32"}],
+        "name": "resolver",
+        "outputs": [{"name": "", "type": "address"}],
+        "stateMutability": "view",
         "type": "function"
     },
     {
-        "inputs": [
-            {"name": "node", "type": "bytes32"}
-        ],
+        "inputs": [{"name": "node", "type": "bytes32"}],
         "name": "owner",
         "outputs": [{"name": "", "type": "address"}],
         "stateMutability": "view",
         "type": "function"
-    }
+    },
 ]
 
 ENS_RESOLVER_ABI = [
     {
-        "inputs": [
-            {"name": "node", "type": "bytes32"},
-            {"name": "key", "type": "string"},
-            {"name": "value", "type": "string"}
-        ],
-        "name": "setText",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "inputs": [{"name": "node", "type": "bytes32"}],
+        "name": "addr",
+        "outputs": [{"name": "", "type": "address"}],
+        "stateMutability": "view",
         "type": "function"
     },
     {
-        "inputs": [
-            {"name": "node", "type": "bytes32"},
-            {"name": "addr", "type": "address"}
-        ],
-        "name": "setAddr",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "inputs": [{"name": "node", "type": "bytes32"}],
+        "name": "name",
+        "outputs": [{"name": "", "type": "string"}],
+        "stateMutability": "view",
         "type": "function"
-    }
+    },
 ]
 
 
 class ENSService:
-    """Service for registering ENS subdomains for agents."""
+    """Service for ENS name resolution and agent verification."""
 
     def __init__(self):
         self.enabled = False
 
         if not settings.ENS_ENABLED:
             logger.info("ENS integration disabled (ENS_ENABLED=false)")
-            return
-
-        if not settings.ENS_PARENT_DOMAIN:
-            logger.warning("ENS integration disabled: ENS_PARENT_DOMAIN not set")
-            return
-
-        if not settings.DEPLOYER_PRIVATE_KEY:
-            logger.warning("ENS integration disabled: DEPLOYER_PRIVATE_KEY not set")
             return
 
         try:
@@ -88,39 +63,19 @@ class ENSService:
                 logger.warning("ENS integration disabled: cannot connect to Ethereum Sepolia RPC")
                 return
 
-            self.account = self.web3.eth.account.from_key(settings.DEPLOYER_PRIVATE_KEY)
-            self.platform_address = self.account.address
-
-            self.parent_domain = settings.ENS_PARENT_DOMAIN
-            self.parent_node = self._namehash(self.parent_domain)
-
             self.registry = self.web3.eth.contract(
                 address=Web3.to_checksum_address(settings.ENS_REGISTRY_ADDRESS),
                 abi=ENS_REGISTRY_ABI
             )
-            self.resolver = self.web3.eth.contract(
-                address=Web3.to_checksum_address(settings.ENS_RESOLVER_ADDRESS),
-                abi=ENS_RESOLVER_ABI
-            )
-            self.resolver_address = Web3.to_checksum_address(settings.ENS_RESOLVER_ADDRESS)
 
             self.enabled = True
-            logger.info(
-                f"ENS integration enabled: parent={self.parent_domain}, "
-                f"platform={self.platform_address}"
-            )
+            logger.info("ENS integration enabled (resolution + verification)")
         except Exception as e:
             logger.error(f"ENS integration init failed: {e}", exc_info=True)
             self.enabled = False
 
     def _namehash(self, name: str) -> bytes:
-        """
-        Compute EIP-137 namehash.
-
-        namehash('') = 0x00...00
-        namehash('eth') = keccak256(namehash('') + keccak256('eth'))
-        namehash('foo.eth') = keccak256(namehash('eth') + keccak256('foo'))
-        """
+        """Compute EIP-137 namehash."""
         node = b'\x00' * 32
         if not name:
             return node
@@ -132,172 +87,164 @@ class ENSService:
 
         return node
 
-    def _sanitize_label(self, name: str) -> str:
+    async def resolve_name(self, name: str) -> Optional[str]:
         """
-        Sanitize agent name into a valid ENS label.
-
-        "Security Reviewer" -> "security-reviewer"
-        "Alice's Bot #1" -> "alices-bot-1"
-        """
-        label = name.lower()
-        label = label.replace(' ', '-')
-        label = re.sub(r'[^a-z0-9\-]', '', label)
-        label = re.sub(r'-+', '-', label)
-        label = label.strip('-')
-
-        if not label:
-            label = 'agent'
-
-        return label
-
-    async def create_subdomain(
-        self,
-        agent_name: str,
-        wallet_address: Optional[str] = None,
-        metadata: Optional[Dict] = None
-    ) -> Optional[Dict]:
-        """
-        Register an ENS subdomain for an agent.
-
-        Creates: <sanitized-name>.<parent_domain>
-        Sets text records for agent metadata.
+        Forward resolution: ENS name -> address.
 
         Args:
-            agent_name: Display name of the agent
-            wallet_address: Optional wallet address to set as addr record
-            metadata: Dict with keys like 'agent_id', 'description', 'capabilities'
+            name: ENS name (e.g. "vitalik.eth")
 
         Returns:
-            Dict with 'ens_name' and 'tx_hashes', or None on failure
+            Checksummed address or None if not found
         """
         if not self.enabled:
-            logger.debug("ENS not enabled, skipping subdomain creation")
+            logger.debug("ENS not enabled, cannot resolve")
             return None
-
-        metadata = metadata or {}
-        label = self._sanitize_label(agent_name)
-        subdomain = f"{label}.{self.parent_domain}"
-        subdomain_node = self._namehash(subdomain)
-        label_hash = Web3.keccak(text=label)
-
-        logger.info(f"Creating ENS subdomain: {subdomain}")
-
-        tx_hashes = []
 
         try:
-            # Fetch nonce once, increment locally
-            nonce = self.web3.eth.get_transaction_count(self.platform_address)
-            gas_price = self.web3.eth.gas_price
+            node = self._namehash(name)
 
-            # TX 1: setSubnodeRecord on Registry
-            tx1 = self.registry.functions.setSubnodeRecord(
-                self.parent_node,
-                label_hash,
-                self.platform_address,
-                self.resolver_address,
-                0  # TTL
-            ).build_transaction({
-                'from': self.platform_address,
-                'nonce': nonce,
-                'gas': 200000,
-                'gasPrice': gas_price,
-                'chainId': 11155111
-            })
+            # Get the resolver for this name
+            resolver_addr = self.registry.functions.resolver(node).call()
 
-            signed_tx1 = self.account.sign_transaction(tx1)
-            tx1_hash = self.web3.eth.send_raw_transaction(signed_tx1.raw_transaction)
-            tx_hashes.append(tx1_hash.hex())
-            logger.info(f"setSubnodeRecord tx: {tx1_hash.hex()}")
-
-            # Wait for TX 1 before proceeding
-            receipt1 = self.web3.eth.wait_for_transaction_receipt(tx1_hash, timeout=120)
-            if receipt1['status'] != 1:
-                logger.error(f"setSubnodeRecord failed: {tx1_hash.hex()}")
+            if resolver_addr == "0x0000000000000000000000000000000000000000":
+                logger.debug(f"No resolver set for {name}")
                 return None
 
-            nonce += 1
+            # Query the resolver for the address
+            resolver = self.web3.eth.contract(
+                address=resolver_addr,
+                abi=ENS_RESOLVER_ABI
+            )
 
-            # TX 2: setAddr on Resolver (if wallet provided)
-            if wallet_address:
-                try:
-                    tx2 = self.resolver.functions.setAddr(
-                        subdomain_node,
-                        Web3.to_checksum_address(wallet_address)
-                    ).build_transaction({
-                        'from': self.platform_address,
-                        'nonce': nonce,
-                        'gas': 100000,
-                        'gasPrice': gas_price,
-                        'chainId': 11155111
-                    })
+            addr = resolver.functions.addr(node).call()
 
-                    signed_tx2 = self.account.sign_transaction(tx2)
-                    tx2_hash = self.web3.eth.send_raw_transaction(signed_tx2.raw_transaction)
-                    tx_hashes.append(tx2_hash.hex())
-                    logger.info(f"setAddr tx: {tx2_hash.hex()}")
+            if addr == "0x0000000000000000000000000000000000000000":
+                logger.debug(f"No address record for {name}")
+                return None
 
-                    receipt2 = self.web3.eth.wait_for_transaction_receipt(tx2_hash, timeout=120)
-                    if receipt2['status'] != 1:
-                        logger.warning(f"setAddr failed (non-critical): {tx2_hash.hex()}")
-
-                    nonce += 1
-                except Exception as e:
-                    logger.warning(f"setAddr failed (non-critical): {e}")
-                    nonce += 1
-
-            # TX 3+: setText records on Resolver
-            text_records = {}
-
-            if metadata.get('agent_id'):
-                text_records['com.agentmarket.id'] = metadata['agent_id']
-
-            if agent_name:
-                text_records['com.agentmarket.name'] = agent_name
-
-            if metadata.get('description'):
-                text_records['description'] = metadata['description']
-
-            if metadata.get('capabilities'):
-                text_records['com.agentmarket.capabilities'] = json.dumps(metadata['capabilities'])
-
-            for key, value in text_records.items():
-                try:
-                    tx = self.resolver.functions.setText(
-                        subdomain_node,
-                        key,
-                        value
-                    ).build_transaction({
-                        'from': self.platform_address,
-                        'nonce': nonce,
-                        'gas': 100000,
-                        'gasPrice': gas_price,
-                        'chainId': 11155111
-                    })
-
-                    signed_tx = self.account.sign_transaction(tx)
-                    tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                    tx_hashes.append(tx_hash.hex())
-                    logger.info(f"setText({key}) tx: {tx_hash.hex()}")
-
-                    receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-                    if receipt['status'] != 1:
-                        logger.warning(f"setText({key}) failed (non-critical): {tx_hash.hex()}")
-
-                    nonce += 1
-                except Exception as e:
-                    logger.warning(f"setText({key}) failed (non-critical): {e}")
-                    nonce += 1
-
-            logger.info(f"ENS subdomain created: {subdomain} ({len(tx_hashes)} txs)")
-
-            return {
-                'ens_name': subdomain,
-                'tx_hashes': tx_hashes
-            }
+            resolved = Web3.to_checksum_address(addr)
+            logger.info(f"ENS resolved: {name} -> {resolved}")
+            return resolved
 
         except Exception as e:
-            logger.error(f"ENS subdomain creation failed for {agent_name}: {e}", exc_info=True)
+            logger.warning(f"ENS resolution failed for {name}: {e}")
             return None
+
+    async def resolve_address(self, address: str) -> Optional[str]:
+        """
+        Reverse resolution: address -> ENS name.
+
+        Uses the reverse registrar: <addr>.addr.reverse
+
+        Args:
+            address: Ethereum address (checksummed or not)
+
+        Returns:
+            ENS name or None if no reverse record
+        """
+        if not self.enabled:
+            return None
+
+        try:
+            addr_lower = address.lower().replace("0x", "")
+            reverse_name = f"{addr_lower}.addr.reverse"
+            node = self._namehash(reverse_name)
+
+            # Get the resolver for the reverse record
+            resolver_addr = self.registry.functions.resolver(node).call()
+
+            if resolver_addr == "0x0000000000000000000000000000000000000000":
+                logger.debug(f"No reverse resolver for {address}")
+                return None
+
+            resolver = self.web3.eth.contract(
+                address=resolver_addr,
+                abi=ENS_RESOLVER_ABI
+            )
+
+            name = resolver.functions.name(node).call()
+
+            if not name:
+                return None
+
+            # Verify forward resolution matches (prevents spoofing)
+            forward_addr = await self.resolve_name(name)
+            if forward_addr and forward_addr.lower() == address.lower():
+                logger.info(f"ENS reverse resolved: {address} -> {name}")
+                return name
+            else:
+                logger.warning(
+                    f"ENS reverse record for {address} points to {name}, "
+                    f"but forward resolution gives {forward_addr} (mismatch)"
+                )
+                return None
+
+        except Exception as e:
+            logger.warning(f"ENS reverse resolution failed for {address}: {e}")
+            return None
+
+    async def verify_ens_ownership(self, address: str, claimed_name: str) -> bool:
+        """
+        Verify that an address owns a claimed ENS name.
+
+        Checks that the ENS name resolves to the given address.
+
+        Args:
+            address: The wallet address claiming ownership
+            claimed_name: The ENS name being claimed
+
+        Returns:
+            True if the name resolves to the address
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            resolved_addr = await self.resolve_name(claimed_name)
+            if not resolved_addr:
+                return False
+
+            match = resolved_addr.lower() == address.lower()
+            if match:
+                logger.info(f"ENS ownership verified: {claimed_name} -> {address}")
+            else:
+                logger.info(
+                    f"ENS ownership NOT verified: {claimed_name} resolves to "
+                    f"{resolved_addr}, not {address}"
+                )
+            return match
+
+        except Exception as e:
+            logger.warning(f"ENS ownership verification failed: {e}")
+            return False
+
+    async def resolve_or_passthrough(self, input_str: str) -> str:
+        """
+        Accept either an ENS name or an address. If it's an ENS name,
+        resolve it to an address. Otherwise return as-is.
+
+        Args:
+            input_str: ENS name (e.g. "vitalik.eth") or hex address
+
+        Returns:
+            Checksummed Ethereum address
+
+        Raises:
+            ValueError: If ENS name cannot be resolved or address is invalid
+        """
+        # If it looks like an ENS name (contains a dot and doesn't start with 0x)
+        if '.' in input_str and not input_str.startswith('0x'):
+            resolved = await self.resolve_name(input_str)
+            if not resolved:
+                raise ValueError(f"Could not resolve ENS name: {input_str}")
+            return resolved
+
+        # Otherwise treat as address
+        if not Web3.is_address(input_str):
+            raise ValueError(f"Invalid address or ENS name: {input_str}")
+
+        return Web3.to_checksum_address(input_str)
 
 
 # Singleton instance

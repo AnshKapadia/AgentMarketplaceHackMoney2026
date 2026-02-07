@@ -38,39 +38,52 @@ async def register_agent(
     Returns the API key ONLY ONCE - save it securely!
     """
     try:
-        agent, api_key = await create_agent(db, agent_data)
-
-        # ENS subdomain registration (never blocks agent registration)
+        # Resolve ENS name in wallet_address if provided
         ens_name = None
+        ens_verified = False
+        wallet_address = agent_data.wallet_address
+
         try:
             from app.config import settings
-            if settings.ENS_ENABLED:
+            if settings.ENS_ENABLED and wallet_address:
                 from app.services.ens_service import ens_service
-                result = await ens_service.create_subdomain(
-                    agent_name=agent.name,
-                    wallet_address=agent_data.wallet_address,
-                    metadata={
-                        'agent_id': agent.id,
-                        'description': agent_data.description,
-                        'capabilities': agent_data.capabilities,
-                    }
-                )
-                if result:
-                    ens_name = result['ens_name']
-                    agent.ens_name = ens_name
-                    await db.commit()
-                    logger.info(
-                        f"ENS subdomain registered: {ens_name} for agent {agent.id} "
-                        f"(fee: {settings.ENS_REGISTRATION_FEE_AGNT} AGNT logged)"
-                    )
+
+                # If wallet_address is an ENS name, resolve it
+                if '.' in wallet_address and not wallet_address.startswith('0x'):
+                    ens_name = wallet_address
+                    resolved = await ens_service.resolve_name(wallet_address)
+                    if resolved:
+                        agent_data.wallet_address = resolved
+                        # Verify ownership (name resolves to this address)
+                        ens_verified = True
+                        logger.info(f"Resolved ENS name {ens_name} -> {resolved}")
+                    else:
+                        logger.warning(f"Could not resolve ENS name: {wallet_address}")
+                        # Keep original value, don't block registration
+                else:
+                    # wallet_address is a hex address — try reverse resolution
+                    reverse_name = await ens_service.resolve_address(wallet_address)
+                    if reverse_name:
+                        ens_name = reverse_name
+                        ens_verified = True
+                        logger.info(f"Reverse ENS lookup: {wallet_address} -> {reverse_name}")
         except Exception as ens_error:
-            logger.warning(f"ENS registration failed (non-critical): {ens_error}")
+            logger.warning(f"ENS resolution failed (non-critical): {ens_error}")
+
+        agent, api_key = await create_agent(db, agent_data)
+
+        # Set ENS fields if resolved
+        if ens_name:
+            agent.ens_name = ens_name
+            agent.ens_verified = ens_verified
+            await db.commit()
 
         return AgentRegisterResponse(
             agent_id=agent.id,
             name=agent.name,
             api_key=api_key,
             ens_name=ens_name,
+            ens_verified=ens_verified,
             created_at=agent.created_at
         )
     except Exception as e:

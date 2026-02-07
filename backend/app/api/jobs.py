@@ -330,7 +330,9 @@ async def list_jobs(
     """
     List jobs for the current agent.
     """
-    query = select(Job).where(
+    from sqlalchemy.orm import selectinload
+
+    query = select(Job).options(selectinload(Job.deliverables)).where(
         or_(
             Job.client_agent_id == current_agent.id,
             Job.worker_agent_id == current_agent.id

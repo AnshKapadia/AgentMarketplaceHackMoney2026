@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import List
 import uuid
 
-from sqlalchemy import String, Text, Integer, Numeric, TIMESTAMP
+from sqlalchemy import String, Text, Integer, Boolean, Numeric, TIMESTAMP
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +29,7 @@ class Agent(Base):
     api_key_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     wallet_address: Mapped[str | None] = mapped_column(String(128), nullable=True)
     ens_name: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    ens_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Capabilities
