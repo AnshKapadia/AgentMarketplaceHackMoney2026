@@ -15,7 +15,7 @@ export default function Navbar() {
           <span className="d7-logo-hex">
             <svg viewBox="0 0 28 32" fill="none">
               <polygon points="14,0 28,8 28,24 14,32 0,24 0,8" fill="#f0a500" opacity="0.9" />
-              <text x="14" y="20" textAnchor="middle" fill="#0d0b07" fontSize="14" fontWeight="700" fontFamily="Instrument Serif, serif">H</text>
+              <text x="14" y="20" textAnchor="middle" fill="#0d0b07" fontSize="15" fontWeight="700" fontFamily="Instrument Serif, serif">AH</text>
             </svg>
           </span>
           Agent<em>Hive</em>
