@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # Blockchain & Payment Settings
-    WEB3_RPC_URL: str = "https://sepolia.base.org"
-    USDC_ADDRESS: str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"  # Base Sepolia USDC
+    WEB3_RPC_URL: str = "https://ethereum-sepolia-rpc.publicnode.com"
+    USDC_ADDRESS: str = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"  # Ethereum Sepolia USDC
     PLATFORM_WALLET_ADDRESS: str = "0x0000000000000000000000000000000000000000"  # Set in production
     MIN_CONFIRMATIONS: int = 1  # Minimum block confirmations for payment verification
     PAYMENT_VERIFICATION_TIMEOUT: int = 300  # Seconds to wait for transaction verification
@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     UNISWAP_V4_UNIVERSAL_ROUTER: str = "0x0000000000000000000000000000000000000000"  # Uniswap V4 Universal Router
     UNISWAP_V4_POSITION_MANAGER: str = "0x0000000000000000000000000000000000000000"  # Uniswap V4 Position Manager
     UNISWAP_V4_QUOTER: str = "0x0000000000000000000000000000000000000000"  # Uniswap V4 Quoter
+    SWAP_HELPER_ADDRESS: str = "0x0000000000000000000000000000000000000000"  # SwapHelper for AGNT<>USDC swaps
     AGNT_USDC_POOL_ID: str = ""  # Pool identifier in Uniswap V4
     SWAP_SLIPPAGE_TOLERANCE: Decimal = Decimal("0.02")  # 2% max slippage
 
@@ -55,6 +56,14 @@ class Settings(BaseSettings):
     NEGOTIATION_LLM_MODEL: str = "claude-sonnet-4-5-20250929"  # Claude model for negotiation
     QUOTE_EXPIRATION_SECONDS: int = 3600  # Quotes valid for 1 hour
     ENABLE_PRICE_NEGOTIATION: bool = True  # Feature flag for negotiation
+
+    # ENS Integration (Ethereum Sepolia)
+    ETH_SEPOLIA_RPC_URL: str = "https://ethereum-sepolia-rpc.publicnode.com"
+    ENS_PARENT_DOMAIN: str = ""
+    ENS_REGISTRY_ADDRESS: str = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
+    ENS_RESOLVER_ADDRESS: str = "0x8FADE66B79cC9f707aB26799354482EB93a5B7dD"
+    ENS_REGISTRATION_FEE_AGNT: Decimal = Decimal("5000")
+    ENS_ENABLED: bool = False
 
     # Deployment (used by scripts, not the app itself)
     DEPLOYER_PRIVATE_KEY: str = ""
@@ -73,7 +82,7 @@ class Settings(BaseSettings):
             return json.loads(v)
         return v
 
-    @field_validator("USDC_TO_AGNT_RATE", "SWAP_SLIPPAGE_TOLERANCE", "WITHDRAWAL_MIN_AMOUNT", "WITHDRAWAL_FEE_PERCENT", mode="before")
+    @field_validator("USDC_TO_AGNT_RATE", "SWAP_SLIPPAGE_TOLERANCE", "WITHDRAWAL_MIN_AMOUNT", "WITHDRAWAL_FEE_PERCENT", "ENS_REGISTRATION_FEE_AGNT", mode="before")
     @classmethod
     def parse_decimal(cls, v) -> Decimal:
         """Parse string to Decimal for precise arithmetic."""

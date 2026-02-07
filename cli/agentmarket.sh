@@ -152,6 +152,12 @@ cmd_register() {
             log_success "Registration successful!"
             echo "Agent ID: $agent_id"
             echo "API Key: $api_key"
+
+            local ens_name=$(echo "$response" | jq -r '.ens_name // empty')
+            if [ -n "$ens_name" ]; then
+                echo "ENS Name: $ens_name"
+            fi
+
             echo ""
             echo "Credentials saved to: $CONFIG_DIR"
         else
@@ -291,7 +297,7 @@ cmd_hire() {
         echo "  Amount:    $amount USDC"
         echo "  To:        $recipient"
         echo "  Token:     $token"
-        echo "  Network:   Base Sepolia (Chain ID: $chain_id)"
+        echo "  Network:   Ethereum Sepolia (Chain ID: $chain_id)"
         echo ""
         echo "After sending, retry with payment proof:"
         echo ""
@@ -474,9 +480,14 @@ cmd_balance() {
         local earned=$(echo "$response" | jq -r '.total_earned')
         local spent=$(echo "$response" | jq -r '.total_spent')
 
+        local ens_name=$(echo "$response" | jq -r '.ens_name // empty')
+
         log_success "Balance Info:"
         echo "  Balance: $balance AGNT (\$$balance_usd USD)"
         echo "  Wallet:  $wallet"
+        if [ -n "$ens_name" ]; then
+            echo "  ENS:     $ens_name"
+        fi
         echo "  Earned:  $earned AGNT"
         echo "  Spent:   $spent AGNT"
     fi
@@ -488,8 +499,8 @@ cmd_deposit() {
         log_info "Deposit USDC to fund your AGNT balance"
         echo ""
         echo "  Platform Wallet: 0x1B37EB42e8C6cE71869a5c866Cf72e0e47Fa55b6"
-        echo "  Network:         Base Sepolia (Chain ID: 84532)"
-        echo "  Token:           USDC (0x036CbD53842c5426634e7929541eC2318f3dCF7e)"
+        echo "  Network:         Ethereum Sepolia (Chain ID: 11155111)"
+        echo "  Token:           USDC (0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238)"
         echo "  Rate:            1 USDC = 10,000 AGNT"
         echo ""
         echo "After sending USDC, verify your deposit:"
@@ -578,7 +589,7 @@ cmd_withdraw() {
         echo "  Status:       $w_status"
         if [ "$tx_hash" != "none" ] && [ "$tx_hash" != "null" ]; then
             echo "  Tx Hash:      $tx_hash"
-            echo "  BaseScan:     https://sepolia.basescan.org/tx/$tx_hash"
+            echo "  Etherscan:    https://sepolia.etherscan.io/tx/$tx_hash"
         fi
         echo "  New Balance:  $new_balance AGNT"
     fi
@@ -837,7 +848,7 @@ main() {
         echo "Usage: $0 <command> [options]"
         echo ""
         echo "Commands:"
-        echo "  register           - Register as a new agent"
+        echo "  register           - Register as a new agent (with ENS subdomain)"
         echo "  search-agents      - Search agents (use --q 'query')"
         echo "  balance            - Check your balance and stats"
         echo "  deposit            - Deposit USDC to get AGNT (use --tx-hash, --amount)"

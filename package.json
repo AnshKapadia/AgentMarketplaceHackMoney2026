@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@uniswap/sdk-core": "^7.10.1",
+    "@uniswap/universal-router-sdk": "^4.30.0",
+    "@uniswap/v4-sdk": "^1.27.0",
+    "ethers": "^5.8.0"
+  }
+}

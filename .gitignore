@@ -4,3 +4,5 @@ docker-compose.yml
 !README.md
 /scripts/*
 /contracts/*
+/site/*
+/docs/*

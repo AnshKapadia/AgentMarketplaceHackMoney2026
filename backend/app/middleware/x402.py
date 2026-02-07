@@ -32,8 +32,8 @@ def create_x402_response(
     amount: Decimal,
     recipient_address: str,
     currency: str = "USDC",
-    chain_id: str = "84532",  # Base Sepolia
-    token_address: str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e",  # USDC on Base Sepolia
+    chain_id: str = "11155111",  # Ethereum Sepolia
+    token_address: str = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",  # USDC on Ethereum Sepolia
     message: str = "Payment required to access this service"
 ) -> JSONResponse:
     """

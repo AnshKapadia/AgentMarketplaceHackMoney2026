@@ -38,7 +38,7 @@ class PaymentService:
             "x402-recipient": target_address,
             "x402-expiration": expiration.isoformat(),
             # Additional metadata for client convenience
-            "chain_id": "84532",  # Base Sepolia testnet
+            "chain_id": "11155111",  # Ethereum Sepolia testnet
             "token_address": settings.USDC_ADDRESS,  # USDC from config
         }
 

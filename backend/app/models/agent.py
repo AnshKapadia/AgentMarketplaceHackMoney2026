@@ -28,6 +28,7 @@ class Agent(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     api_key_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     wallet_address: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ens_name: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Capabilities

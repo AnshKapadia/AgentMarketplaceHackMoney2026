@@ -80,6 +80,17 @@ class WithdrawalService:
                 "outputs": [{"name": "", "type": "uint8"}],
                 "stateMutability": "view",
                 "type": "function"
+            },
+            {
+                "constant": True,
+                "inputs": [
+                    {"name": "owner", "type": "address"},
+                    {"name": "spender", "type": "address"}
+                ],
+                "name": "allowance",
+                "outputs": [{"name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function"
             }
         ]
 
@@ -210,9 +221,10 @@ class WithdrawalService:
         db: AsyncSession
     ) -> bool:
         """
-        Execute the withdrawal: convert AGNT to USDC at fixed rate and transfer.
+        Execute the withdrawal: swap AGNT to USDC via Uniswap V4 and transfer.
 
-        Sends USDC from platform wallet to the recipient address.
+        Uses the official Uniswap V4 SDK (Node.js) to properly encode and
+        execute the swap through the UniversalRouter.
         Refunds AGNT to agent balance on failure.
 
         Args:
@@ -223,7 +235,7 @@ class WithdrawalService:
             True if successful, False otherwise
         """
         try:
-            if not self.platform_account:
+            if not self.platform_private_key:
                 logger.error("Platform wallet not configured")
                 withdrawal.status = "failed"
                 withdrawal.error_message = "Platform wallet not configured"
@@ -233,52 +245,57 @@ class WithdrawalService:
             withdrawal.status = "processing"
             await db.commit()
 
-            logger.info(f"Executing withdrawal {withdrawal.id}...")
+            logger.info(f"Executing withdrawal {withdrawal.id} via Uniswap V4 SDK...")
 
-            # Calculate USDC amount at fixed rate (no Uniswap swap needed)
+            import subprocess
+            import json
+            from pathlib import Path
+
+            # Calculate AGNT amount after fee
             agnt_after_fee = withdrawal.agnt_amount_in - withdrawal.fee_agnt
-            usdc_amount = agnt_after_fee / settings.USDC_TO_AGNT_RATE
-            exchange_rate = Decimal("1") / settings.USDC_TO_AGNT_RATE
-
-            logger.info(
-                f"Withdrawal conversion: {agnt_after_fee} AGNT → {usdc_amount} USDC "
-                f"(rate: 1 USDC = {settings.USDC_TO_AGNT_RATE} AGNT)"
-            )
-
-            # Transfer USDC from platform wallet to recipient
-            usdc_contract = self.web3.eth.contract(
-                address=self.web3.to_checksum_address(self.usdc_address),
-                abi=self.erc20_abi
-            )
-
-            # USDC has 6 decimals
-            usdc_raw_amount = int(usdc_amount * Decimal(10 ** 6))
-
+            agnt_raw_amount = int(agnt_after_fee * Decimal(10 ** 18))  # AGNT has 18 decimals
             recipient = self.web3.to_checksum_address(withdrawal.recipient_address)
-            nonce = self.web3.eth.get_transaction_count(self.platform_address)
 
-            transfer_tx = usdc_contract.functions.transfer(
-                recipient,
-                usdc_raw_amount
-            ).build_transaction({
-                'from': self.platform_address,
-                'nonce': nonce,
-                'gas': 100000,
-                'gasPrice': self.web3.eth.gas_price,
-                'chainId': 84532  # Base Sepolia
-            })
+            logger.info(f"Swapping {agnt_after_fee} AGNT for USDC via Uniswap V4 SDK...")
 
-            signed_transfer = self.platform_account.sign_transaction(transfer_tx)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_transfer.raw_transaction)
-            transfer_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            # Call the Node.js swap script using the official Uniswap V4 SDK
+            project_root = Path(__file__).parent.parent.parent.parent
+            swap_script = project_root / "scripts" / "swap_agnt_to_usdc.js"
 
-            if transfer_receipt['status'] != 1:
-                raise Exception(f"USDC transfer failed on-chain: {tx_hash.hex()}")
+            result = subprocess.run(
+                [
+                    "node", str(swap_script),
+                    str(agnt_raw_amount),
+                    recipient,
+                    self.platform_private_key
+                ],
+                capture_output=True,
+                text=True,
+                timeout=180,
+                cwd=str(project_root)
+            )
 
-            transfer_tx_hash = tx_hash.hex()
+            # Log stderr (progress messages)
+            if result.stderr:
+                for line in result.stderr.strip().split('\n'):
+                    logger.info(f"[swap-sdk] {line}")
+
+            # Parse stdout (JSON result)
+            if not result.stdout.strip():
+                raise Exception(f"Swap script produced no output. Exit code: {result.returncode}")
+
+            swap_result = json.loads(result.stdout.strip())
+
+            if not swap_result.get('success'):
+                raise Exception(f"Uniswap swap failed: {swap_result.get('error', 'Unknown error')}")
+
+            transfer_tx_hash = swap_result['txHash']
+            usdc_amount = Decimal(swap_result['usdcAmount'])
+
+            exchange_rate = usdc_amount / agnt_after_fee if agnt_after_fee > 0 else Decimal(0)
 
             logger.info(
-                f"USDC transfer executed: {usdc_amount} USDC to {withdrawal.recipient_address} "
+                f"Uniswap swap executed: {agnt_after_fee} AGNT -> {usdc_amount} USDC "
                 f"(tx: {transfer_tx_hash})"
             )
 
@@ -292,7 +309,7 @@ class WithdrawalService:
 
             await db.commit()
 
-            logger.info(f"✅ Withdrawal {withdrawal.id} completed successfully")
+            logger.info(f"Withdrawal {withdrawal.id} completed successfully")
             return True
 
         except Exception as e:

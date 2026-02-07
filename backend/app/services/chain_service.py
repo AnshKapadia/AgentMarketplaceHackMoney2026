@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 class ChainService:
     def __init__(self):
-        self.rpc_url = os.getenv("WEB3_RPC_URL", "https://sepolia.base.org")
+        self.rpc_url = os.getenv("WEB3_RPC_URL", "https://rpc.sepolia.org")
         self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
-        self.usdc_address = os.getenv("USDC_ADDRESS", "0x036CbD53842c5426634e7929541eC2318f3dCF7e") # Base Sepolia USDC
+        self.usdc_address = os.getenv("USDC_ADDRESS", "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238") # Ethereum Sepolia USDC
         
         # Reduced ABI for Transfer events and decimals
         self.erc20_abi = [

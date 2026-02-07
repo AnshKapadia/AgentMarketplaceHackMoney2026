@@ -28,6 +28,7 @@ class AgentPublic(BaseModel):
     name: str
     capabilities: List[str]
     description: Optional[str]
+    ens_name: Optional[str] = None
     reputation_score: Decimal
     jobs_completed: int
     status: str
@@ -41,6 +42,7 @@ class AgentResponse(BaseModel):
     id: str
     name: str
     wallet_address: Optional[str]
+    ens_name: Optional[str] = None
     description: Optional[str]
     capabilities: List[str]
     reputation_score: Decimal
@@ -70,6 +72,7 @@ class AgentRegisterResponse(BaseModel):
     agent_id: str
     name: str
     api_key: str  # ONLY shown once during registration
+    ens_name: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

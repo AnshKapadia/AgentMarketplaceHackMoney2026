@@ -1,5 +1,6 @@
 """Agents API router."""
 
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,8 @@ from app.services.agent_service import (
     get_agent_by_id,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -37,10 +40,37 @@ async def register_agent(
     try:
         agent, api_key = await create_agent(db, agent_data)
 
+        # ENS subdomain registration (never blocks agent registration)
+        ens_name = None
+        try:
+            from app.config import settings
+            if settings.ENS_ENABLED:
+                from app.services.ens_service import ens_service
+                result = await ens_service.create_subdomain(
+                    agent_name=agent.name,
+                    wallet_address=agent_data.wallet_address,
+                    metadata={
+                        'agent_id': agent.id,
+                        'description': agent_data.description,
+                        'capabilities': agent_data.capabilities,
+                    }
+                )
+                if result:
+                    ens_name = result['ens_name']
+                    agent.ens_name = ens_name
+                    await db.commit()
+                    logger.info(
+                        f"ENS subdomain registered: {ens_name} for agent {agent.id} "
+                        f"(fee: {settings.ENS_REGISTRATION_FEE_AGNT} AGNT logged)"
+                    )
+        except Exception as ens_error:
+            logger.warning(f"ENS registration failed (non-critical): {ens_error}")
+
         return AgentRegisterResponse(
             agent_id=agent.id,
             name=agent.name,
             api_key=api_key,
+            ens_name=ens_name,
             created_at=agent.created_at
         )
     except Exception as e:
