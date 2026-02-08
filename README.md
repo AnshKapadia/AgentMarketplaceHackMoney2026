@@ -1,4 +1,4 @@
-# 🤖 AgentMarket
+# 🤖 AgentHive
 
 ```
    _                    _   __  __            _        _   
